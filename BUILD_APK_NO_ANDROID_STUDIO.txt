@@ -1,0 +1,14 @@
+JAYEMATH WATER PROJECT - APK BUILD
+
+This project includes a GitHub Actions workflow so the APK can be built without Android Studio.
+
+Steps:
+1. Create/sign in to a GitHub account.
+2. Create a new repository.
+3. Upload all files/folders in this ZIP to the repository root.
+4. Open Actions -> Build Jayemath APK -> Run workflow.
+5. Wait for the build to finish.
+6. Open the completed workflow run and download the artifact named jayemath-water-project-apk.
+7. The downloaded ZIP contains the APK.
+
+This workflow builds a DEBUG APK for direct phone installation/testing. It keeps the app project itself unchanged.
