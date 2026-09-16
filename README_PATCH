@@ -1,0 +1,24 @@
+JAYEMATH WATER PROJECT V185 - BUILD PATCH
+
+Purpose:
+Fix the Android Gradle module and GitHub Actions build configuration without replacing the existing web app features.
+
+Files in this patch:
+1. app/build.gradle
+   - Applies the Android application plugin correctly.
+   - Adds namespace/applicationId/SDK/version configuration.
+   - Uses Java 17.
+   - Preserves the existing web-assets preparation task.
+
+2. .github/workflows/build-apk.yml
+   - Builds the Android module explicitly with :app:assembleDebug.
+   - Uploads the generated debug APK as a workflow artifact.
+
+Installation:
+- Replace the existing app/build.gradle with this patch's app/build.gradle.
+- Replace .github/workflows/build-apk.yml with this patch's workflow file.
+- Keep the existing index.html, config.js, sw.js, manifest.webmanifest and cover-768.png in the repository root.
+- Keep the existing app/src/main/java and app/src/main/AndroidManifest.xml.
+
+Important:
+This patch does not contain the 1.2 MB web app index.html or image assets, so existing app functionality is not overwritten.
