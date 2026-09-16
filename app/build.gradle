@@ -1,0 +1,19 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.jayemath.waterprint'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'com.jayemath.waterprint'
+        minSdk 23
+        targetSdk 35
+        versionCode 185
+        versionName "V185"
+    }
+}
+
+dependencies {
+}
