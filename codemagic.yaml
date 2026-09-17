@@ -1,3 +1,20 @@
-environment:
-  android_signing:
-    - jayemath_water_v185
+workflows:
+  android-apk:
+    name: Jayemath Water Project V185 APK
+    max_build_duration: 120
+
+    environment:
+      android_signing:
+        - jayemath_water_v185
+
+    scripts:
+      - name: Set Android SDK location
+        script: |
+          echo "sdk.dir=$ANDROID_SDK_ROOT" > "$CM_BUILD_DIR/local.properties"
+
+      - name: Build Android APK
+        script: |
+          gradle :app:assembleRelease
+
+    artifacts:
+      - app/build/outputs/**/*.apk
