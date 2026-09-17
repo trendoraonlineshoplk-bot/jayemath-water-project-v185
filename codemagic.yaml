@@ -1,11 +1,11 @@
 workflows:
   android-apk:
-    name: Jayemath Water Project V185 APK
+    name: jayemath_water_v185_newayematJh Water Project V185 APK
     max_build_duration: 120
 
     environment:
       android_signing:
-        - jayemath_water_v185
+       - jayemath_water_v185_new
 
     scripts:
       - name: Set Android SDK location
