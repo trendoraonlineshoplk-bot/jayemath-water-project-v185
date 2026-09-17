@@ -10,7 +10,7 @@ workflows:
 
       - name: Build Android APK
         script: |
-          gradle assembleRelease
+          gradle :app:assembleRelease
 
     artifacts:
       - app/build/outputs/**/*.apk
