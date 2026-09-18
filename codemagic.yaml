@@ -12,10 +12,18 @@ workflows:
         script: |
           echo "sdk.dir=$ANDROID_SDK_ROOT" > "$CM_BUILD_DIR/local.properties"
 
+      - name: Check signing configuration
+        script: |
+          echo "Checking Android signing..."
+          test -n "$CM_KEYSTORE_PATH"
+          test -n "$CM_KEYSTORE_PASSWORD"
+          test -n "$CM_KEY_ALIAS"
+          test -n "$CM_KEY_PASSWORD"
+          test -f "$CM_KEYSTORE_PATH"
+
       - name: Build signed Android APK
         script: |
-          flutter pub get
-          flutter build apk --release
+          gradle :app:assembleRelease
 
     artifacts:
-      - build/app/outputs/flutter-apk/app-release.apk
+      - app/build/outputs/apk/release/app-release.apk
