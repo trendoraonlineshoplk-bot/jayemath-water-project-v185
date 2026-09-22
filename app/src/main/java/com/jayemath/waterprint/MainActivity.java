@@ -11,6 +11,7 @@ import android.widget.ImageView;
 import android.graphics.Color;
 import android.util.Base64;
 import org.json.JSONObject;
+
 import java.io.*;
 import java.util.*;
 import java.util.concurrent.*;
@@ -75,6 +76,8 @@ public class MainActivity extends Activity {
 
         web.getSettings().setJavaScriptEnabled(true);
         web.getSettings().setDomStorageEnabled(true);
+        web.getSettings().setAllowFileAccess(true);
+        web.getSettings().setAllowContentAccess(true);
 
         web.setWebViewClient(new WebViewClient());
 
@@ -131,18 +134,19 @@ public class MainActivity extends Activity {
 
             if (!btOk()) {
                 requestBt();
+                status("Bluetooth permission required");
                 return;
             }
 
-            BluetoothAdapter a =
+            BluetoothAdapter adapter =
                     BluetoothAdapter.getDefaultAdapter();
 
-            if (a == null) {
+            if (adapter == null) {
                 status("Bluetooth not available");
                 return;
             }
 
-            if (!a.isEnabled()) {
+            if (!adapter.isEnabled()) {
 
                 try {
 
@@ -153,48 +157,71 @@ public class MainActivity extends Activity {
                     );
 
                     status(
-                            "Please turn Bluetooth ON, then tap Connect again."
+                            "Turn Bluetooth ON and press Connect again."
                     );
 
                 } catch (Exception e) {
 
                     status(
-                            "Please turn Bluetooth ON in Android settings."
+                            "Please turn Bluetooth ON in Android Settings."
                     );
                 }
 
                 return;
             }
 
-            Set<BluetoothDevice> ds =
-                    a.getBondedDevices();
+            try {
+                adapter.cancelDiscovery();
+            } catch (Exception ignored) {}
 
-            if (ds == null || ds.isEmpty()) {
+            Set<BluetoothDevice> paired;
+
+            try {
+
+                paired = adapter.getBondedDevices();
+
+            } catch (SecurityException e) {
+
+                status("Bluetooth permission denied");
+                return;
+            }
+
+            if (paired == null || paired.isEmpty()) {
 
                 status(
-                        "No paired Bluetooth printer found. " +
-                        "Pair XP-P301A in Android Bluetooth settings first."
+                        "No paired printer found. " +
+                        "Pair P301A-C374 first."
                 );
 
                 return;
             }
 
-            ArrayList<BluetoothDevice> list =
-                    new ArrayList<>(ds);
+            ArrayList<BluetoothDevice> printers =
+                    new ArrayList<>(paired);
 
             String[] names =
-                    new String[list.size()];
+                    new String[printers.size()];
 
-            for (int i = 0; i < list.size(); i++) {
+            for (int i = 0; i < printers.size(); i++) {
 
-                BluetoothDevice d = list.get(i);
+                BluetoothDevice d = printers.get(i);
+
+                String name;
+
+                try {
+                    name = d.getName();
+                } catch (Exception e) {
+                    name = "Bluetooth Printer";
+                }
+
+                if (name == null || name.trim().isEmpty()) {
+                    name = "Bluetooth Printer";
+                }
 
                 names[i] =
-                        (d.getName() == null
-                                ? "Bluetooth device"
-                                : d.getName())
-                        + "\n"
-                        + d.getAddress();
+                        name +
+                        "\n" +
+                        d.getAddress();
             }
 
             new AlertDialog.Builder(MainActivity.this)
@@ -202,7 +229,7 @@ public class MainActivity extends Activity {
                     .setItems(
                             names,
                             (dialog, which) ->
-                                    connect(list.get(which))
+                                    connect(printers.get(which))
                     )
                     .setNegativeButton(
                             "Cancel",
@@ -242,19 +269,13 @@ public class MainActivity extends Activity {
 
                     status("Sending to printer...");
 
-                    /*
-                     * XP-P301A / budget Bluetooth thermal
-                     * printers can fail when a large ESC/POS
-                     * packet is written at once.
-                     *
-                     * Send small chunks with a short delay.
-                     */
+                    final int CHUNK = 256;
 
-                    final int CHUNK = 512;
-
-                    for (int p = 0;
-                         p < data.length;
-                         p += CHUNK) {
+                    for (
+                            int p = 0;
+                            p < data.length;
+                            p += CHUNK
+                    ) {
 
                         int n =
                                 Math.min(
@@ -274,43 +295,37 @@ public class MainActivity extends Activity {
 
                             try {
 
-                                Thread.sleep(25);
+                                Thread.sleep(40);
 
-                            } catch (InterruptedException ie) {
+                            } catch (InterruptedException e) {
 
                                 Thread.currentThread().interrupt();
-                                throw ie;
+                                throw e;
                             }
                         }
                     }
 
-                    /*
-                     * Give the printer time to receive
-                     * the final bytes before reporting success.
-                     */
-
                     try {
 
-                        Thread.sleep(120);
+                        Thread.sleep(300);
 
-                    } catch (InterruptedException ie) {
+                    } catch (InterruptedException e) {
 
                         Thread.currentThread().interrupt();
-                        throw ie;
+                        throw e;
                     }
 
                     status("Printed successfully");
 
                 } catch (Exception e) {
 
-                    status(
-                            "Print failed: " +
-                            (
-                                    e.getMessage() == null
-                                    ? "Bluetooth print error"
-                                    : e.getMessage()
-                            )
-                    );
+                    String msg = e.getMessage();
+
+                    if (msg == null || msg.trim().isEmpty()) {
+                        msg = "Bluetooth print error";
+                    }
+
+                    status("Print failed: " + msg);
 
                     closeSocket();
                 }
@@ -318,7 +333,7 @@ public class MainActivity extends Activity {
         }
     }
 
-    void connect(BluetoothDevice d) {
+    void connect(BluetoothDevice device) {
 
         io.execute(() -> {
 
@@ -326,16 +341,37 @@ public class MainActivity extends Activity {
 
                 closeSocket();
 
-                status(
-                        "Connecting to " +
-                        d.getName() +
-                        "..."
-                );
+                String name;
 
+                try {
+                    name = device.getName();
+                } catch (Exception e) {
+                    name = "Bluetooth Printer";
+                }
+
+                if (name == null) {
+                    name = "Bluetooth Printer";
+                }
+
+                status("Connecting to " + name + "...");
+
+                /*
+                 * Stop discovery before RFCOMM connection.
+                 */
+                try {
+                    BluetoothAdapter
+                            .getDefaultAdapter()
+                            .cancelDiscovery();
+                } catch (Exception ignored) {}
+
+                /*
+                 * Method 1:
+                 * Normal secure SPP connection.
+                 */
                 try {
 
                     socket =
-                            d.createRfcommSocketToServiceRecord(
+                            device.createRfcommSocketToServiceRecord(
                                     SPP_UUID
                             );
 
@@ -346,14 +382,13 @@ public class MainActivity extends Activity {
                     closeSocket();
 
                     /*
-                     * Some Classic Bluetooth receipt
-                     * printers require insecure RFCOMM.
+                     * Method 2:
+                     * Insecure RFCOMM.
                      */
-
                     try {
 
-                        java.lang.reflect.Method m =
-                                d.getClass()
+                        java.lang.reflect.Method method =
+                                device.getClass()
                                         .getMethod(
                                                 "createInsecureRfcommSocketToServiceRecord",
                                                 UUID.class
@@ -361,8 +396,8 @@ public class MainActivity extends Activity {
 
                         socket =
                                 (BluetoothSocket)
-                                        m.invoke(
-                                                d,
+                                        method.invoke(
+                                                device,
                                                 SPP_UUID
                                         );
 
@@ -370,29 +405,64 @@ public class MainActivity extends Activity {
 
                     } catch (Exception second) {
 
-                        throw first;
+                        closeSocket();
+
+                        /*
+                         * Method 3:
+                         * Channel 1.
+                         * Many cheap XP-P301A type
+                         * printers use RFCOMM channel 1.
+                         */
+                        try {
+
+                            java.lang.reflect.Method method =
+                                    device.getClass()
+                                            .getMethod(
+                                                    "createRfcommSocket",
+                                                    int.class
+                                            );
+
+                            socket =
+                                    (BluetoothSocket)
+                                            method.invoke(
+                                                    device,
+                                                    1
+                                            );
+
+                            socket.connect();
+
+                        } catch (Exception third) {
+
+                            closeSocket();
+
+                            throw new IOException(
+                                    "Unable to connect to " +
+                                    name
+                            );
+                        }
                     }
                 }
 
-                out =
-                        socket.getOutputStream();
+                out = socket.getOutputStream();
 
                 status(
                         "Connected: " +
-                        d.getName()
+                        name
                 );
 
             } catch (Exception e) {
 
                 closeSocket();
 
+                String msg = e.getMessage();
+
+                if (msg == null || msg.trim().isEmpty()) {
+                    msg = "Bluetooth printer connection failed";
+                }
+
                 status(
                         "Connection failed: " +
-                        (
-                                e.getMessage() == null
-                                ? "Bluetooth printer connection failed"
-                                : e.getMessage()
-                        )
+                        msg
                 );
             }
         });
@@ -402,15 +472,18 @@ public class MainActivity extends Activity {
 
         try {
 
-            if (out != null)
+            if (out != null) {
+                out.flush();
                 out.close();
+            }
 
         } catch (Exception ignored) {}
 
         try {
 
-            if (socket != null)
+            if (socket != null) {
                 socket.close();
+            }
 
         } catch (Exception ignored) {}
 
@@ -422,6 +495,7 @@ public class MainActivity extends Activity {
     protected void onDestroy() {
 
         closeSocket();
+
         io.shutdownNow();
 
         super.onDestroy();
